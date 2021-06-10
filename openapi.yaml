@@ -1,0 +1,273 @@
+openapi: 3.0.1
+info:
+  title: KNX FDSK Cloud
+  description: 'This is the OpenAPI description for a sample KNX FDSK Cloud server. You can find out more about KNX at [https://knx.org](https://knx.org).'
+  version: 1.0.0
+servers:
+- url: https://keys.manufacturer.com/v1
+tags:
+- name: token
+  description: Server Tokens for FDSK Requests
+- name: key
+  description: Status and Lock Information for Cloud-Hosted Keys
+paths:
+  /token/{sn}:
+    get:
+      tags:
+      - token
+      summary: 'Request token by serial number'
+      description: 'This service returns a single server token that the client can in turn use to get the FDSK from an unconfigured KNX Secure device. Calls to this endpoint must be authenticated using a HTTP Bearer Authentication containing a JWT secured with the device token that a legitimate client must have received from that unconfigured KNX Secure device before.'
+      operationId: getTokenBySN
+      parameters:
+      - in: path
+        name: sn
+        description: 'KNX serial number of the device for which the token shall be generated. The format must match 12 hexadecimal characters.'
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9A-Fa-f]{12}$'
+          example: '00FA00000001'
+      responses:
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        301:
+          description: 'Another FDSK Cloud server is responsible for this KNX serial number and the request must be redirected. The new URL will be provided in the Location field of the HTTP Header included with this response.'
+          content: {}
+        401:
+          description: 'Invalid serial number or invalid authentication token supplied.'
+          content: {}
+        403:
+          description: 'Access to the key of the device with this serial number is locked in the cloud.'
+          content: {}
+      security:
+      - device_token_auth: []
+  /key/{sn}:
+    get:
+      tags:
+      - key
+      summary: Get key information by serial number
+      description: This information can only be retrieved by already knowing the FDSK (and hence the Cloud Key) for the KNX serial number.
+      operationId: getKeyBySN
+      parameters:
+      - name: sn
+        in: path
+        description: KNX serial number of the device for which the key informtion shall be retrieved.
+          The format must match 12 hexadecimal characters.
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9A-Fa-f]{12}$'
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Key'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Key'
+        400:
+          description: Invalid username supplied
+          content: {}
+        404:
+          description: User not found
+          content: {}
+      security:
+      - cloud_key_auth: []
+    put:
+      tags:
+      - key
+      summary: Modify key lock status
+      description: This can only be done by already knowing the FDSK (and hence the Cloud Key) for the KNX serial number.
+      operationId: updateKey
+      parameters:
+      - name: sn
+        in: path
+        description: name that need to be updated
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: Updated user object
+        content:
+          '*/*':
+            schema:
+              $ref: '#/components/schemas/Key'
+        required: true
+      responses:
+        400:
+          description: Invalid user supplied
+          content: {}
+        404:
+          description: User not found
+          content: {}
+      security:
+      - cloud_key_auth: []
+components:
+  schemas:
+    device_token_JWT:
+      type: object
+      properties:
+        Header:
+          type: object
+          description: 'The header typically consists of two parts: the type of the token, and the signing algorithm being used. Then, this JSON is Base64Url encoded to form the first part of the JWT, which for HMAC SHA256 secured JWTs always calculates to eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' 
+          properties:
+            alg:
+              type: string
+              description: 'The signing algorithm being used to secure the claims in the payload of the JWT, shall be fixed to HMAC SHA256 for the KNX FDSK Cloud workflow with the device token serving as secret.'
+              default: 'HS256'
+            typ:
+              type: string
+              description:  'The type of the token, which is JWT.'
+              default: 'JWT'
+          required:
+          - alg
+          - typ
+        Payload:
+          type: object
+          description: 'The second part of the JWT token is the payload, which contains the claims. Claims are statements about an entity (typically, the user) and additional data. In the FDSK Cloud workflow, the client requesting the server token claims that he is the legitimate user having physical access to an unconfigured KNX secure device with the claims provided in the paylaod part of the JWT. The payload is then Base64Url encoded to form the second part of the JSON Web Token. With the signature of the JWT calculated over the header and payload part using HMAC SHA256 with the device token as secret, the requesting client can proof the validity of his claims in the payload.'
+          properties:
+            cid:
+              type: string
+              format: byte
+              description: 'The cid (Client ID) claim contains the 128 bit Client ID that the management client used to generate to Session ID for the device token request. Its value MUST be Base64Url encoded to a 22 character string.'
+              example: 'KFUjGeUNo5JRjWp5xnuvrA'
+            time:
+              type: string
+              format: byte
+              description: 'The time claim contains the 6 octet AN158 timestamp used by the management client for the device token request. Its value MUST be encoded as an 8 character Base64Url string.'
+              example: 'ABkvSZWw'
+            chal:
+              type: string
+              format: byte
+              description: 'the chal (challenge) claim contains the 6 octet device challenge value returned by the unfonfigured KNX Secure device in its device token response message. The device challenge MUST be Base64Url encoded to an 8 character string.'
+              example: 'JLfUvInb'
+            usr:
+              type: string
+              description: 'The usr (user) claim contains the my.knx.org username with which the user of the management client (typically ETS) is logged in at the time of requesting any service of this API. Use of this claim is OPTIONAL.'
+              example: 'KNX087654'
+            iat:
+              type: integer
+              format: int32
+              description: 'The iat (issued at) claim identifies the time at which the JWT was issued. This claim can be used to determine the age of the JWT. Its value MUST be a number containing a NumericDate value. Use of this claim is OPTIONAL, but when strong user identification is required, this claim must be present in the JWT as the myKNX also uses this exact same time value to sign the logged in user ID.'
+              example: 1623274334
+            sgn:
+              type: string
+              format: byte
+              description: 'The sgn (signature) claim contains the ES256 signature generated by the my.knx.org user registry over usr, iat and device token (strong user identification). Its value MUST be Base64Url encoded to a 86 characters string. Use of this claim is OPTIONAL.'
+              example: 'MEQCICRphRrc0GWowZgJAy0gL6At628Kw8YPE22iD-aKIi4PAiA0JWU-qFNL8I0tP0ws3Bbmg0FfVMn4_yk2lGGquAGOXA'
+          required:
+          - cid
+          - time
+          - chal
+
+    TokenResponse:
+      type: object
+      properties:
+        key:
+          type: string
+          format: byte
+          description: The 128 bit session key used in the FDSK key response
+          example: 'JtnzEbENiQdHDKfJ1gjcSA=='
+        token:
+          type: object
+          properties:
+            key:
+              type: string
+              format: byte
+              description: The session key AES128 encrypted with the cloud key
+              example: '5NkJwpDQ+xygaP+t3yLL0A=='
+            mac:
+              type: string
+              format: byte
+              description: A 32 bit CBC-MAC over the session key and the device's challenge
+              example: '1jG2Fw=='
+
+    cloud_key_JWT:
+      type: object
+      properties:
+        Header:
+          type: object
+          description: 'The header typically consists of two parts: the type of the token, and the signing algorithm being used. Then, this JSON is Base64Url encoded to form the first part of the JWT, which for HMAC SHA256 secured JWTs always calculates to eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' 
+          properties:
+            alg:
+              type: string
+              description: 'The signing algorithm being used to secure the claims in the payload of the JWT, shall be fixed to HMAC SHA256 for the KNX FDSK Cloud workflow with the device token serving as secret.'
+              default: 'HS256'
+            typ:
+              type: string
+              description:  'The type of the token, which is JWT.'
+              default: 'JWT'
+          required:
+          - alg
+          - typ
+        Payload:
+          type: object
+          description: 'The second part of the JWT token is the payload, which contains the claims. Claims are statements about an entity (typically, the user) and additional data. [...]. The payload is then Base64Url encoded to form the second part of the JSON Web Token. With the signature of the JWT calculated over the header and payload part using HMAC SHA256 with the cloud key as secret, the requesting client can proof the validity of his claims in the payload.'
+          properties:
+            iat:
+              type: integer
+              format: int32
+              description: 'The iat (issued at) claim identifies the time at which the JWT was issued. This claim can be used to determine the age of the JWT. Its value MUST be a number containing a NumericDate value. Use of this claim is OPTIONAL, but when strong user identification is required, this claim must be present in the JWT as the myKNX also uses this exact same time value to sign the logged in user ID.'
+              example: 1623274334
+            usr:
+              type: string
+              description: 'The usr (user) claim contains the my.knx.org username with which the user of the management client (typically ETS) is logged in at the time of requesting any service of this API. Use of this claim is OPTIONAL.'
+              example: 'KNX087654'
+            sgn:
+              type: string
+              format: byte
+              description: 'The sgn (signature) claim contains the ES256 signature generated by the my.knx.org user registry over usr, iat and device token (strong user identification). Its value MUST be Base64Url encoded to a 86 characters string. Use of this claim is OPTIONAL.'
+              example: 'MEQCICRphRrc0GWowZgJAy0gL6At628Kw8YPE22iD-aKIi4PAiA0JWU-qFNL8I0tP0ws3Bbmg0FfVMn4_yk2lGGquAGOXA'
+          required:
+          - iat
+
+    Key:
+      type: object
+      properties:
+        sn:
+          type: string
+          description: 'The KNX serial number of the device for which the key is managed in the FDSK Cloud. This binary information is encoded as a 12 character hexadecimal string (identical to the encoding as URL parameter).'
+          example: '00FA00000001'
+        locked:
+          type: boolean
+          example: true
+          description: 'If the key for the device with the associated KNX serial number is locked in the cloud. For a locked key no server tokens will be generated and an attempt to request one with the token endpoint will be answered with HTTP return code 403 Forbitten.'
+        tokens:
+          type: integer
+          format: int32
+          description: 'This counter informs the user about how often a server token was requested for this serial number.'
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date-time
+                description: 'timestamp of action'
+                example: '2021-06-09T23:32:14+02:00'
+              action:
+                type: string
+                description: 'type of action'
+                enum:
+                - token
+                - locked
+                - unlocked
+              user:
+                type: string
+                description: 'OPTIONAL: Username if it can be disclosed (e.g. identical to requesting user or part of the same organization)'
+  securitySchemes:
+    device_token_auth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cloud_key_auth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
