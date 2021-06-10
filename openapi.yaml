@@ -61,25 +61,26 @@ paths:
         schema:
           type: string
           pattern: '^[0-9A-Fa-f]{12}$'
+          example: '00FA00000001'
       responses:
         200:
-          description: successful operation
+          description: 'Successful operation'
           content:
-            application/xml:
-              schema:
-                $ref: '#/components/schemas/Key'
             application/json:
               schema:
                 $ref: '#/components/schemas/Key'
-        400:
-          description: Invalid username supplied
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Key'
+        301:
+          description: 'Another FDSK Cloud server is responsible for this KNX serial number and the request must be redirected. The new URL will be provided in the Location field of the HTTP Header included with this response.'
           content: {}
-        404:
-          description: User not found
+        401:
+          description: 'No or invalid authentication supplied.'
           content: {}
       security:
       - cloud_key_auth: []
-    put:
+    patch:
       tags:
       - key
       summary: Modify key lock status
@@ -88,10 +89,13 @@ paths:
       parameters:
       - name: sn
         in: path
-        description: name that need to be updated
+        description: KNX serial number of the device for which the key informtion shall be retrieved.
+          The format must match 12 hexadecimal characters.
         required: true
         schema:
           type: string
+          pattern: '^[0-9A-Fa-f]{12}$'
+          example: '00FA00000001'
       requestBody:
         description: Updated user object
         content:
@@ -100,12 +104,19 @@ paths:
               $ref: '#/components/schemas/Key'
         required: true
       responses:
-        400:
-          description: Invalid user supplied
-          content: {}
-        404:
-          description: User not found
-          content: {}
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Key'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Key'
+        301:
+          description: 'Another FDSK Cloud server is responsible for this KNX serial number and the request must be redirected. The new URL will be provided in the Location field of the HTTP Header included with this response.'
+        401:
+          description: 'No or invalid authentication supplied.'
       security:
       - cloud_key_auth: []
 components:
@@ -234,16 +245,19 @@ components:
           type: string
           description: 'The KNX serial number of the device for which the key is managed in the FDSK Cloud. This binary information is encoded as a 12 character hexadecimal string (identical to the encoding as URL parameter).'
           example: '00FA00000001'
+          readOnly: true
         locked:
           type: boolean
           example: true
           description: 'If the key for the device with the associated KNX serial number is locked in the cloud. For a locked key no server tokens will be generated and an attempt to request one with the token endpoint will be answered with HTTP return code 403 Forbitten.'
         tokens:
           type: integer
+          readOnly: true
           format: int32
           description: 'This counter informs the user about how often a server token was requested for this serial number.'
         history:
           type: array
+          readOnly: true
           items:
             type: object
             properties:
