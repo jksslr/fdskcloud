@@ -156,7 +156,7 @@ components:
             chal:
               type: string
               format: byte
-              description: 'the chal (challenge) claim contains the 6 octet device challenge value returned by the unfonfigured KNX Secure device in its device token response message. The device challenge MUST be Base64Url encoded to an 8 character string.'
+              description: 'the chal (challenge) claim contains the 4 octet device challenge value returned by the unconfigured KNX Secure device in its device token response message. The device challenge MUST be Base64Url encoded to a 6 character string.'
               example: 'JLfUvInb'
             usr:
               type: string
